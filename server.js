@@ -36,6 +36,16 @@ const USD_EXCHANGE_RATES = {
 
 const server = http.createServer(async (req, res) => {
   try {
+    // CORS HEADERS
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+    // Handle preflight request
+    if (req.method === "OPTIONS") {
+      res.writeHead(204);
+      return res.end();
+    }
     const requestUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
 
     if (req.method === "GET" && requestUrl.pathname === "/") {
