@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AuditBlox — AI Invoice Auditor</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --sf: -apple-system, "SF Pro Display", "SF Pro Text", BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  --bg: #060C1A;
+  --surface: rgba(255,255,255,0.035);
+  --surface-hover: rgba(255,255,255,0.06);
+  --accent: #3B82F6;
+  --accent-bright: #60A5FA;
+  --accent-soft: rgba(59,130,246,0.1);
+  --cyan: #22D3EE;
+  --indigo: #818CF8;
+  --white: #FFFFFF;
+  --text: #EFF6FF;
+  --text-2: rgba(239,246,255,0.6);
+  --text-3: rgba(239,246,255,0.28);
+  --border: rgba(255,255,255,0.07);
+  --border-blue: rgba(59,130,246,0.22);
+  --green: #34D399;
+  --red: #F87171;
+  --yellow: #FBBF24;
+  --r: 18px;
+}
+
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--sf);
+  background: var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── BACKGROUND ─── */
+.canvas {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+}
+.orb-a {
+  position: absolute; top: -25vh; right: -15vw;
+  width: 80vw; height: 80vw; max-width: 900px; max-height: 900px;
+  background: radial-gradient(circle at 40% 40%, rgba(59,130,246,0.20) 0%, rgba(99,102,241,0.10) 35%, transparent 70%);
+  border-radius: 50%;
+}
+.orb-b {
+  position: absolute; bottom: -20vh; left: -10vw;
+  width: 70vw; height: 70vw; max-width: 780px; max-height: 780px;
+  background: radial-gradient(circle at 60% 60%, rgba(34,211,238,0.10) 0%, rgba(59,130,246,0.05) 40%, transparent 70%);
+  border-radius: 50%;
+}
+.grid-lines {
+  position: absolute; inset: 0;
+  background-image: linear-gradient(rgba(59,130,246,0.035) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(59,130,246,0.035) 1px, transparent 1px);
+  background-size: 68px 68px;
+}
+.grain {
+  position: absolute; inset: 0; opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 300px 300px;
+}
+
+/* ─── NAV ─── */
+nav {
+  position: fixed; top: 0; width: 100%; z-index: 100;
+  height: 62px; padding: 0 44px;
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(6,12,26,0.72);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border-bottom: 1px solid var(--border);
+}
+.logo {
+  display: flex; align-items: center; gap: 9px;
+  font-size: 1rem; font-weight: 700; letter-spacing: -0.025em;
+}
+.logo-mark {
+  width: 28px; height: 28px; border-radius: 7px;
+  background: linear-gradient(135deg, #3B82F6, #6366F1);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 14px rgba(59,130,246,0.45);
+  font-size: 0.85rem;
+}
+.logo em { font-style: normal; color: var(--accent-bright); }
+nav ul { list-style: none; display: flex; gap: 32px; }
+nav a { color: var(--text-2); text-decoration: none; font-size: 0.85rem; font-weight: 450; letter-spacing: -0.01em; transition: color .2s; }
+nav a:hover { color: var(--text); }
+.cta-btn {
+  background: linear-gradient(135deg, #3B82F6, #6366F1);
+  color: #fff; border: none; padding: 8px 18px; border-radius: 50px;
+  font-family: var(--sf); font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  letter-spacing: -0.01em; box-shadow: 0 4px 18px rgba(59,130,246,0.28); transition: all .2s;
+}
+.cta-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(59,130,246,0.42); }
+
+/* ─── HERO ─── */
+.hero {
+  position: relative; z-index: 1;
+  max-width: 1200px; margin: 0 auto; padding: 80px 44px 80px;
+  min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr;
+  align-items: center; gap: 60px;
+}
+
+/* left */
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: rgba(59,130,246,0.09); border: 1px solid rgba(59,130,246,0.2);
+  padding: 5px 13px; border-radius: 50px;
+  font-size: 0.7rem; font-weight: 600; color: var(--accent-bright);
+  letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 26px;
+}
+.pulse { width: 5px; height: 5px; background: var(--accent-bright); border-radius: 50%; animation: pd 2s ease-in-out infinite; }
+@keyframes pd { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.35;transform:scale(1.6)} }
+
+h1 {
+  font-size: clamp(2.7rem, 5.2vw, 4.2rem);
+  font-weight: 700; line-height: 1.06; letter-spacing: -0.04em;
+  color: var(--white); margin-bottom: 20px;
+}
+.g {
+  background: linear-gradient(130deg, var(--accent-bright) 0%, var(--cyan) 55%, var(--indigo) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.sub {
+  font-size: 0.975rem; color: var(--text-2); line-height: 1.66;
+  max-width: 420px; margin-bottom: 34px; letter-spacing: -0.01em;
+}
+.btns { display: flex; gap: 10px; margin-bottom: 52px; }
+.btn-p {
+  background: linear-gradient(135deg, #3B82F6, #6366F1);
+  color: #fff; border: none; padding: 12px 24px; border-radius: 50px;
+  font-family: var(--sf); font-size: 0.875rem; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 7px; letter-spacing: -0.01em;
+  box-shadow: 0 5px 22px rgba(59,130,246,0.32); transition: all .22s;
+}
+.btn-p:hover { transform: translateY(-2px); box-shadow: 0 10px 34px rgba(59,130,246,0.46); }
+.btn-g {
+  background: none; color: var(--text-2); border: 1px solid var(--border-blue);
+  padding: 12px 24px; border-radius: 50px;
+  font-family: var(--sf); font-size: 0.875rem; font-weight: 500; cursor: pointer;
+  letter-spacing: -0.01em; transition: all .22s;
+}
+.btn-g:hover { color: var(--text); border-color: rgba(59,130,246,0.45); background: var(--accent-soft); }
+
+.stats { display: flex; }
+.s-item { padding: 0 28px; border-right: 1px solid var(--border); }
+.s-item:first-child { padding-left: 0; }
+.s-item:last-child { border-right: none; }
+.s-num {
+  font-size: 1.7rem; font-weight: 700; letter-spacing: -0.04em;
+  background: linear-gradient(130deg, var(--accent-bright), var(--cyan));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.s-lbl { font-size: 0.72rem; color: var(--text-3); margin-top: 2px; font-weight: 450; }
+
+/* ─── UPLOAD CARD ─── */
+.card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border-blue);
+  border-radius: 26px; padding: 26px;
+  backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
+  box-shadow: 0 40px 80px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.05);
+  position: relative;
+}
+.card::before {
+  content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 55%; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(96,165,250,0.55), transparent);
+}
+.card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.card-head h3 { font-size: 0.88rem; font-weight: 600; letter-spacing: -0.02em; }
+.live { display: flex; align-items: center; gap: 5px; background: rgba(52,211,153,0.09); border: 1px solid rgba(52,211,153,0.18); padding: 3px 9px; border-radius: 50px; font-size: 0.67rem; font-weight: 700; color: var(--green); letter-spacing: 0.05em; }
+.live-d { width: 5px; height: 5px; background: var(--green); border-radius: 50%; animation: pd 2s infinite; }
+
+.dz {
+  border: 1.5px dashed rgba(59,130,246,0.28); border-radius: 16px;
+  padding: 34px 20px; text-align: center; cursor: pointer; transition: all .22s;
+  background: rgba(59,130,246,0.025); position: relative;
+}
+.dz:hover, .dz.over { border-color: var(--accent); background: rgba(59,130,246,0.06); }
+.dz input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+/* Document illustration in drop zone */
+.doc-img { width: 58px; height: 72px; margin: 0 auto 14px; display: block; }
+
+.dz h4 { font-size: 0.88rem; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 4px; }
+.dz p { font-size: 0.76rem; color: var(--text-3); }
+.chips { display: flex; gap: 5px; justify-content: center; margin-top: 12px; }
+.chip { background: rgba(255,255,255,0.04); border: 1px solid var(--border); padding: 3px 8px; border-radius: 5px; font-size: 0.66rem; font-weight: 700; color: var(--text-3); letter-spacing: 0.06em; }
+
+#fn { font-size: 0.77rem; color: var(--accent-bright); margin-top: 10px; text-align: center; display: none; }
+
+.abtn {
+  width: 100%; margin-top: 13px;
+  background: linear-gradient(135deg, #3B82F6, #6366F1);
+  color: #fff; border: none; padding: 13px;
+  border-radius: 13px; font-family: var(--sf); font-size: 0.88rem; font-weight: 600;
+  cursor: pointer; transition: all .22s; display: flex; align-items: center; justify-content: center; gap: 8px;
+  letter-spacing: -0.01em; box-shadow: 0 4px 18px rgba(59,130,246,0.22);
+}
+.abtn:hover:not([disabled]) { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(59,130,246,0.38); }
+.abtn[disabled] { opacity: 0.38; cursor: not-allowed; }
+
+.pipe { display: none; flex-direction: column; gap: 5px; margin-top: 12px; }
+.ps {
+  display: flex; align-items: center; gap: 9px; padding: 8px 11px; border-radius: 9px;
+  background: rgba(255,255,255,0.02); border: 1px solid var(--border);
+  font-size: 0.78rem; color: var(--text-2); transition: all .25s;
+}
+.ps.on { background: rgba(59,130,246,0.09); border-color: var(--border-blue); color: var(--accent-bright); }
+.ps.ok { background: rgba(52,211,153,0.07); border-color: rgba(52,211,153,0.18); color: var(--green); }
+.sp { width: 13px; height: 13px; border: 2px solid rgba(255,255,255,0.12); border-top-color: var(--accent-bright); border-radius: 50%; animation: spin .65s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+
+/* ─── TRUST BAR ─── */
+.trust {
+  position: relative; z-index: 1;
+  padding: 18px 44px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,0.012);
+  display: flex; align-items: center; gap: 36px; flex-wrap: wrap;
+}
+.tlabel { font-size: 0.7rem; color: var(--text-3); white-space: nowrap; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; min-width: 100px; }
+.tlogos { display: flex; gap: 40px; flex-wrap: wrap; }
+.tlogo { font-size: 0.8rem; font-weight: 700; color: rgba(255,255,255,0.13); letter-spacing: -0.02em; }
+
+/* ─── SECTION COMMON ─── */
+.wrap { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 0 44px; }
+.sec-label { font-size: 0.7rem; font-weight: 600; color: var(--accent-bright); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; }
+.sec-title { font-size: clamp(1.75rem, 3vw, 2.5rem); font-weight: 700; letter-spacing: -0.035em; color: var(--white); }
+.sec-title .dim { color: var(--text-3); }
+
+/* ─── HOW IT WORKS ─── */
+.how { padding: 96px 0; }
+.how .sec-title { margin-bottom: 48px; }
+.how-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.hc {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 26px 22px;
+  position: relative; transition: all .28s; overflow: hidden;
+}
+.hc:hover { background: var(--surface-hover); border-color: var(--border-blue); transform: translateY(-4px); }
+.hc::after { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,rgba(59,130,246,0.38),transparent); opacity:0; transition:opacity .28s; }
+.hc:hover::after { opacity:1; }
+.hn { font-size: 0.66rem; font-weight: 700; color: var(--accent-bright); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 18px; }
+.hico { width: 48px; height: 48px; margin-bottom: 16px; }
+.hc h4 { font-size: 0.9rem; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 7px; }
+.hc p { font-size: 0.78rem; color: var(--text-2); line-height: 1.6; }
+
+/* ─── ABOUT ─── */
+.about { padding: 0 0 96px; }
+.about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+.about-right p { font-size: 0.975rem; font-weight: 500; line-height: 1.65; letter-spacing: -0.01em; margin-bottom: 14px; }
+.about-right .muted { font-size: 0.86rem; color: var(--text-2); line-height: 1.7; margin-bottom: 26px; font-weight: 400; }
+.feats { display: flex; flex-direction: column; gap: 9px; }
+.feat { display: flex; align-items: center; gap: 9px; font-size: 0.84rem; font-weight: 450; letter-spacing: -0.01em; }
+.fchk {
+  width: 19px; height: 19px; border-radius: 50%; flex-shrink: 0;
+  background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.22);
+  display: flex; align-items: center; justify-content: center;
+}
+.fchk svg { width: 9px; height: 9px; stroke: var(--accent-bright); stroke-width: 2.5; fill: none; }
+
+/* ─── RESULTS ─── */
+#res { display: none; position: relative; z-index: 1; padding: 80px 0; animation: fu .45s ease; }
+@keyframes fu { from{opacity:0;transform:translateY(22px)} to{opacity:1;transform:translateY(0)} }
+.res-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 28px; }
+.res-head .sec-title { margin-bottom: 0; font-size: 1.6rem; }
+
+.kgrid { display: grid; grid-template-columns: repeat(4,1fr); gap: 13px; margin-bottom: 14px; }
+.kc { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px 18px; transition: border-color .2s; }
+.kc:hover { border-color: var(--border-blue); }
+.klbl { font-size: 0.68rem; color: var(--text-3); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 9px; }
+.kval { font-size: 1.65rem; font-weight: 700; letter-spacing: -0.04em; }
+.kval.bl { background: linear-gradient(130deg,var(--accent-bright),var(--cyan)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.kval.gr { color: var(--green); }
+.kval.rd { color: var(--red); }
+.kval.yw { color: var(--yellow); }
+.ksub { font-size: 0.7rem; color: var(--text-3); margin-top: 4px; }
+
+.mc, .fc, .bc { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; }
+.ct { font-size: 0.83rem; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 18px; display: flex; align-items: center; gap: 7px; }
+.ct .bdg { background: rgba(255,255,255,0.05); border: 1px solid var(--border); padding: 2px 8px; border-radius: 50px; font-size: 0.66rem; color: var(--text-3); font-weight: 700; }
+
+.mg { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+.mi .ml { font-size: 0.66rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px; }
+.mi .mv { font-size: 0.86rem; font-weight: 500; letter-spacing: -0.01em; }
+
+.rb { display: grid; grid-template-columns: 3fr 2fr; gap: 13px; margin-top: 13px; }
+
+.fr {
+  display: grid; grid-template-columns: auto 1fr auto;
+  gap: 12px; align-items: start;
+  padding: 13px 0; border-bottom: 1px solid var(--border); font-size: 0.81rem;
+}
+.fr:last-child { border-bottom: none; }
+.sv { padding: 2px 8px; border-radius: 50px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap; }
+.sh { background: rgba(248,113,113,0.1); color: var(--red); border: 1px solid rgba(248,113,113,0.18); }
+.sm { background: rgba(251,191,36,0.1); color: var(--yellow); border: 1px solid rgba(251,191,36,0.18); }
+.sl { background: rgba(52,211,153,0.08); color: var(--green); border: 1px solid rgba(52,211,153,0.14); }
+.fdm { font-size: 0.81rem; line-height: 1.5; }
+.fds { font-size: 0.7rem; color: var(--text-3); margin-top: 2px; }
+.oa { font-weight: 700; font-size: 0.83rem; white-space: nowrap; }
+.oa.bad { color: var(--red); }
+.oa.ok { color: var(--green); }
+
+.bi { margin-bottom: 14px; }
+.bt { display: flex; justify-content: space-between; font-size: 0.76rem; margin-bottom: 5px; }
+.bt span:last-child { font-weight: 600; color: var(--text-2); }
+.btr { height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden; }
+.bf { height: 100%; border-radius: 2px; transition: width 1.1s cubic-bezier(.4,0,.2,1); }
+.f1 { background: linear-gradient(90deg,#3B82F6,#60A5FA); }
+.f2 { background: linear-gradient(90deg,#22D3EE,#67E8F9); }
+.f3 { background: linear-gradient(90deg,#818CF8,#A5B4FC); }
+.f4 { background: linear-gradient(90deg,#F87171,#FCA5A5); }
+
+/* ─── FOOTER ─── */
+footer {
+  position: relative; z-index: 1;
+  padding: 28px 44px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+footer p { font-size: 0.75rem; color: var(--text-3); }
+
+/* ─── TOAST ─── */
+.toast {
+  position: fixed; bottom: 26px; right: 26px; z-index: 999;
+  background: rgba(6,12,26,0.94); border: 1px solid var(--border-blue);
+  border-radius: 13px; padding: 12px 16px; font-size: 0.82rem;
+  max-width: 290px; backdrop-filter: blur(24px);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04);
+  transform: translateY(72px); opacity: 0; transition: all .28s cubic-bezier(.4,0,.2,1);
+  display: flex; gap: 9px; align-items: flex-start;
+}
+.toast.on { transform: translateY(0); opacity: 1; }
+
+@media (max-width: 940px) {
+  .hero { grid-template-columns: 1fr; padding-top: 76px; gap: 36px; }
+  .how-grid { grid-template-columns: repeat(2,1fr); }
+  .about-grid { grid-template-columns: 1fr; gap: 40px; }
+  .kgrid { grid-template-columns: repeat(2,1fr); }
+  .rb { grid-template-columns: 1fr; }
+  nav ul { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- Background -->
+<div class="canvas">
+  <div class="orb-a"></div>
+  <div class="orb-b"></div>
+  <div class="grid-lines"></div>
+  <div class="grain"></div>
+</div>
+
+<!-- Nav -->
+<nav>
+  <div class="logo">
+    <div class="logo-mark">📋</div>
+    Audit<em>Blox</em>
+  </div>
+  <ul>
+    <li><a href="#hero">Upload</a></li>
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#about">About</a></li>
+  </ul>
+  <button class="cta-btn" onclick="document.getElementById('fin').click()">Try it free</button>
+</nav>
+
+<!-- Hero -->
+<div style="position:relative;z-index:1">
+<div class="hero" id="hero">
+
+  <div>
+    <div class="eyebrow"><span class="pulse"></span>AI Invoice Intelligence</div>
+    <h1>Stop paying for<br><span class="g">vendor mistakes.</span></h1>
+    <p class="sub">5–10% of invoices contain overcharges. AuditBlox extracts, cross-checks, and flags every GST error, duplicate charge, and mystery surcharge — in under 3 minutes.</p>
+    <div class="btns">
+      <button class="btn-p" onclick="document.getElementById('fin').click()">
+        Upload Invoice
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+      </button>
+      <button class="btn-g" onclick="runDemo()">See demo →</button>
+    </div>
+    <div class="stats">
+      <div class="s-item"><div class="s-num">$6K+</div><div class="s-lbl">Monthly recovery</div></div>
+      <div class="s-item"><div class="s-num">95%+</div><div class="s-lbl">Accuracy</div></div>
+      <div class="s-item"><div class="s-num">&lt;3 min</div><div class="s-lbl">Per invoice</div></div>
+    </div>
+  </div>
+
+  <!-- Upload Card -->
+  <div class="card">
+    <div class="card-head">
+      <h3>Invoice Auditor</h3>
+      <div class="live"><span class="live-d"></span>Live</div>
+    </div>
+
+    <div class="dz" id="dz">
+      <input type="file" id="fin" accept=".pdf,.jpg,.jpeg,.png,.webp,.xlsx,.xls,.csv" onchange="handleFile(event)">
+
+      <!-- Document SVG illustration -->
+      <svg class="doc-img" viewBox="0 0 58 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="2" y="2" width="54" height="68" rx="9" fill="url(#dg)" opacity="0.92"/>
+        <rect x="2" y="2" width="54" height="68" rx="9" fill="none" stroke="rgba(96,165,250,0.35)" stroke-width="1"/>
+        <path d="M40 2 L56 18 L40 18 Z" fill="rgba(0,0,20,0.22)"/>
+        <path d="M40 2 L56 18" stroke="rgba(96,165,250,0.25)" stroke-width="1"/>
+        <!-- header line -->
+        <rect x="10" y="24" width="22" height="4" rx="2" fill="rgba(96,165,250,0.35)"/>
+        <!-- body lines -->
+        <rect x="10" y="33" width="34" height="2.5" rx="1.25" fill="rgba(255,255,255,0.1)"/>
+        <rect x="10" y="39" width="28" height="2.5" rx="1.25" fill="rgba(255,255,255,0.1)"/>
+        <rect x="10" y="45" width="32" height="2.5" rx="1.25" fill="rgba(255,255,255,0.1)"/>
+        <!-- amount row -->
+        <rect x="10" y="54" width="34" height="10" rx="5" fill="rgba(59,130,246,0.18)" stroke="rgba(96,165,250,0.3)" stroke-width="1"/>
+        <rect x="14" y="58" width="14" height="2" rx="1" fill="rgba(96,165,250,0.55)"/>
+        <rect x="34" y="58" width="8" height="2" rx="1" fill="rgba(96,165,250,0.8)"/>
+        <defs>
+          <linearGradient id="dg" x1="0" y1="0" x2="58" y2="72" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#1A3A6E"/>
+            <stop offset="100%" stop-color="#0D2050"/>
+          </linearGradient>
+        </defs>
+      </svg>
+
+      <h4>Drop your invoice here</h4>
+      <p>or click to browse — PDF, JPG, PNG, XLSX, CSV</p>
+      <div class="chips">
+        <span class="chip">PDF</span><span class="chip">JPG</span><span class="chip">PNG</span><span class="chip">XLSX</span><span class="chip">CSV</span>
+      </div>
+    </div>
+
+    <div id="fn"></div>
+
+    <button class="abtn" id="ab" onclick="startAudit()" disabled>
+      <span id="abl">Select a file to audit</span>
+      <span id="asp" style="display:none"><span class="sp"></span></span>
+    </button>
+
+    <div class="pipe" id="pipe">
+      <div class="ps" id="p1"><span id="i1" style="width:14px;text-align:center">○</span>Extracting invoice fields</div>
+      <div class="ps" id="p2"><span id="i2" style="width:14px;text-align:center">○</span>Verifying GST &amp; HSN codes</div>
+      <div class="ps" id="p3"><span id="i3" style="width:14px;text-align:center">○</span>Checking for duplicates</div>
+      <div class="ps" id="p4"><span id="i4" style="width:14px;text-align:center">○</span>Flagging anomalies</div>
+      <div class="ps" id="p5"><span id="i5" style="width:14px;text-align:center">○</span>Generating audit report</div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- Trust Bar -->
+<div class="trust">
+  <span class="tlabel">Works with invoices from</span>
+  <div class="tlogos">
+    <span class="tlogo">Logistics Co.</span>
+    <span class="tlogo">Raw Materials</span>
+    <span class="tlogo">Marketing Agencies</span>
+    <span class="tlogo">Freight Carriers</span>
+    <span class="tlogo">SaaS Vendors</span>
+    <span class="tlogo">Packaging Suppliers</span>
+  </div>
+</div>
+
+<!-- Results -->
+<section id="res">
+<div class="wrap">
+  <div class="res-head">
+    <div>
+      <div class="sec-label">Audit Report</div>
+      <div class="sec-title" id="rtitle">Analysis Complete</div>
+    </div>
+    <button class="btn-p" onclick="dlReport()">
+      Download JSON
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+    </button>
+  </div>
+
+  <div class="kgrid">
+    <div class="kc"><div class="klbl">Total Billed</div><div class="kval bl" id="kb">—</div><div class="ksub">From invoice</div></div>
+    <div class="kc"><div class="klbl">Correct Amount</div><div class="kval gr" id="kc2">—</div><div class="ksub">After corrections</div></div>
+    <div class="kc"><div class="klbl">Overcharged</div><div class="kval rd" id="ko">—</div><div class="ksub" id="kp">—</div></div>
+    <div class="kc"><div class="klbl">Issues Found</div><div class="kval yw" id="ki">—</div><div class="ksub" id="ks">—</div></div>
+  </div>
+
+  <div class="mc" style="margin-bottom:13px">
+    <div class="ct">📋 Extracted Invoice Details</div>
+    <div class="mg" id="mg"></div>
+  </div>
+
+  <div class="rb">
+    <div class="fc">
+      <div class="ct">⚠️ Findings <span class="bdg" id="fb">0</span></div>
+      <div id="fl"></div>
+    </div>
+    <div class="bc">
+      <div class="ct">📊 Breakdown</div>
+      <div id="bl"></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- How it works -->
+<div style="position:relative;z-index:1" id="how">
+<div class="wrap">
+<div class="how">
+  <div class="sec-label">Process</div>
+  <div class="sec-title" style="margin-bottom:44px">Four steps to a <span class="dim">clean invoice.</span></div>
+  <div class="how-grid">
+
+    <div class="hc">
+      <div class="hn">#01</div>
+      <svg class="hico" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="48" height="48" rx="13" fill="rgba(59,130,246,0.09)"/>
+        <rect width="48" height="48" rx="13" fill="none" stroke="rgba(59,130,246,0.18)" stroke-width="1"/>
+        <path d="M24 32V20M24 20L19 25M24 20L29 25" stroke="#60A5FA" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M16 34h16" stroke="#60A5FA" stroke-width="1.8" stroke-linecap="round" opacity="0.45"/>
+      </svg>
+      <h4>Upload Invoice</h4>
+      <p>Drop any PDF, image, spreadsheet, or scanned document. Works across vendor formats without pre-configuration.</p>
+    </div>
+
+    <div class="hc">
+      <div class="hn">#02</div>
+      <svg class="hico" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="48" height="48" rx="13" fill="rgba(34,211,238,0.08)"/>
+        <rect width="48" height="48" rx="13" fill="none" stroke="rgba(34,211,238,0.18)" stroke-width="1"/>
+        <rect x="14" y="14" width="20" height="20" rx="4" stroke="#22D3EE" stroke-width="1.5"/>
+        <rect x="17" y="19" width="9" height="2" rx="1" fill="#22D3EE" opacity="0.6"/>
+        <rect x="17" y="23" width="14" height="2" rx="1" fill="#22D3EE" opacity="0.35"/>
+        <rect x="17" y="27" width="11" height="2" rx="1" fill="#22D3EE" opacity="0.35"/>
+        <circle cx="32" cy="32" r="5" fill="rgba(34,211,238,0.12)" stroke="#22D3EE" stroke-width="1.5"/>
+        <path d="M30.5 32h3M32 30.5v3" stroke="#22D3EE" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+      <h4>AI Extraction</h4>
+      <p>OCR + LLM pulls every field — vendor, line items, rates, GST, HSN codes — at 95%+ accuracy.</p>
+    </div>
+
+    <div class="hc">
+      <div class="hn">#03</div>
+      <svg class="hico" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="48" height="48" rx="13" fill="rgba(129,140,248,0.09)"/>
+        <rect width="48" height="48" rx="13" fill="none" stroke="rgba(129,140,248,0.18)" stroke-width="1"/>
+        <circle cx="24" cy="24" r="10" stroke="#818CF8" stroke-width="1.5" stroke-dasharray="3 2"/>
+        <path d="M20 24l3 3 6-6" stroke="#818CF8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="35" cy="14" r="4" fill="rgba(248,113,113,0.15)" stroke="#F87171" stroke-width="1.4"/>
+        <path d="M35 12v3M35 16.5v.5" stroke="#F87171" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+      <h4>Smart Cross-Check</h4>
+      <p>Verifies GST slabs, HSN codes, duplicate detection, calculation math, and mystery surcharges.</p>
+    </div>
+
+    <div class="hc">
+      <div class="hn">#04</div>
+      <svg class="hico" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="48" height="48" rx="13" fill="rgba(52,211,153,0.07)"/>
+        <rect width="48" height="48" rx="13" fill="none" stroke="rgba(52,211,153,0.18)" stroke-width="1"/>
+        <rect x="13" y="28" width="5" height="8" rx="2" fill="#34D399" opacity="0.45"/>
+        <rect x="21" y="22" width="5" height="14" rx="2" fill="#34D399" opacity="0.68"/>
+        <rect x="29" y="17" width="5" height="19" rx="2" fill="#34D399"/>
+        <path d="M13 20l8-4 8 4 6-3" stroke="#34D399" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.45"/>
+      </svg>
+      <h4>Audit Dashboard</h4>
+      <p>Clear KPIs showing billed vs correct, overcharges by type, and severity-rated findings.</p>
+    </div>
+
+  </div>
+</div>
+</div>
+</div>
+
+<!-- About -->
+<div style="position:relative;z-index:1" id="about">
+<div class="wrap">
+<div class="about">
+  <div class="about-grid">
+    <div>
+      <div class="sec-label">Behind the Auditor</div>
+      <div class="sec-title" style="margin-bottom:32px">Built for finance teams<br>that move <span class="dim">fast.</span></div>
+      <!-- Decorative illustration -->
+      <svg viewBox="0 0 300 200" width="300" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Main receipt -->
+        <rect x="16" y="20" width="170" height="155" rx="14" fill="rgba(59,130,246,0.06)" stroke="rgba(59,130,246,0.18)" stroke-width="1"/>
+        <rect x="28" y="36" width="65" height="9" rx="4.5" fill="rgba(96,165,250,0.28)"/>
+        <rect x="28" y="52" width="130" height="3" rx="1.5" fill="rgba(255,255,255,0.07)"/>
+        <rect x="28" y="60" width="110" height="3" rx="1.5" fill="rgba(255,255,255,0.07)"/>
+        <rect x="28" y="68" width="120" height="3" rx="1.5" fill="rgba(255,255,255,0.07)"/>
+        <rect x="28" y="82" width="70" height="3" rx="1.5" fill="rgba(255,255,255,0.04)"/>
+        <rect x="28" y="90" width="90" height="3" rx="1.5" fill="rgba(255,255,255,0.04)"/>
+        <rect x="28" y="98" width="80" height="3" rx="1.5" fill="rgba(255,255,255,0.04)"/>
+        <rect x="28" y="113" width="130" height="28" rx="8" fill="rgba(59,130,246,0.1)" stroke="rgba(96,165,250,0.22)" stroke-width="1"/>
+        <rect x="36" y="122" width="48" height="3" rx="1.5" fill="rgba(96,165,250,0.45)"/>
+        <rect x="126" y="122" width="26" height="3" rx="1.5" fill="rgba(96,165,250,0.75)"/>
+        <!-- Alert circle -->
+        <circle cx="172" cy="48" r="22" fill="rgba(248,113,113,0.1)" stroke="rgba(248,113,113,0.28)" stroke-width="1"/>
+        <path d="M172 38v14M172 55.5V57" stroke="#F87171" stroke-width="2.2" stroke-linecap="round"/>
+        <!-- Check circle -->
+        <circle cx="240" cy="130" r="26" fill="rgba(52,211,153,0.08)" stroke="rgba(52,211,153,0.24)" stroke-width="1"/>
+        <path d="M230 130l7 7 13-13" stroke="#34D399" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <!-- Connector dots -->
+        <circle cx="194" cy="70" r="2" fill="rgba(59,130,246,0.3)"/>
+        <circle cx="206" cy="82" r="2" fill="rgba(59,130,246,0.2)"/>
+        <circle cx="218" cy="98" r="2" fill="rgba(59,130,246,0.15)"/>
+        <path d="M172 70 Q200 100 214 122" stroke="rgba(59,130,246,0.14)" stroke-width="1" stroke-dasharray="3 3"/>
+      </svg>
+    </div>
+    <div class="about-right">
+      <p>An AI audit engine that understands the business logic behind every invoice line — not just the numbers.</p>
+      <p class="muted">Built for D2C brands processing $12K+ monthly in vendor invoices. From logistics to raw materials, AuditBlox knows what to scrutinize and why it matters.</p>
+      <div class="feats">
+        <div class="feat"><div class="fchk"><svg viewBox="0 0 12 12"><path d="M2 6l3 3 5-5"/></svg></div>OCR + LLM field extraction</div>
+        <div class="feat"><div class="fchk"><svg viewBox="0 0 12 12"><path d="M2 6l3 3 5-5"/></svg></div>GST slab &amp; HSN code verification</div>
+        <div class="feat"><div class="fchk"><svg viewBox="0 0 12 12"><path d="M2 6l3 3 5-5"/></svg></div>Duplicate invoice detection</div>
+        <div class="feat"><div class="fchk"><svg viewBox="0 0 12 12"><path d="M2 6l3 3 5-5"/></svg></div>Mystery surcharge flagging</div>
+        <div class="feat"><div class="fchk"><svg viewBox="0 0 12 12"><path d="M2 6l3 3 5-5"/></svg></div>Calculation error catching</div>
+        <div class="feat"><div class="fchk"><svg viewBox="0 0 12 12"><path d="M2 6l3 3 5-5"/></svg></div>Actionable audit reports</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- Footer -->
+<footer>
+  <div class="logo">
+    <div class="logo-mark">📋</div>
+    Audit<em>Blox</em>
+  </div>
+  <p>Mosaic Fellowship 2026 Builder Challenge — AI Invoice Auditor</p>
+</footer>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <span id="ti">✅</span>
+  <span id="tm">Done</span>
+</div>
+
+<script>
+let f=null, r=null;
+
+const dz=document.getElementById('dz');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');if(e.dataTransfer.files[0])setF(e.dataTransfer.files[0]);});
+
+function handleFile(e){if(e.target.files[0])setF(e.target.files[0]);}
+function setF(file){
+  f=file;
+  const fn=document.getElementById('fn');
+  fn.textContent=`📎 ${file.name}  (${(file.size/1024).toFixed(1)} KB)`;
+  fn.style.display='block';
+  document.getElementById('ab').disabled=false;
+  document.getElementById('abl').textContent='Audit this invoice';
+}
+
+const delay=ms=>new Promise(res=>setTimeout(res,ms));
+function setStep(n,s){
+  const el=document.getElementById('p'+n),ic=document.getElementById('i'+n);
+  el.className='ps'+(s==='on'?' on':s==='ok'?' ok':'');
+  ic.textContent=s==='on'?'⚙':s==='ok'?'✓':'○';
+}
+
+async function startAudit(){
+  if(!f)return;
+  document.getElementById('ab').disabled=true;
+  document.getElementById('abl').textContent='Auditing…';
+  document.getElementById('asp').style.display='inline';
+  const pipe=document.getElementById('pipe');
+  pipe.style.display='flex';
+  for(let i=1;i<=5;i++)setStep(i,'');
+  setStep(1,'on');
+
+  try{
+    const b64=await toB64(f);
+    const mt=getUploadMediaType(f);
+    setStep(1,'ok');setStep(2,'on');
+
+    const sys=`You are an expert invoice auditor AI for Indian D2C/B2B vendors.
+Respond ONLY with a valid JSON object — no markdown, no extra text:
+{
+  "vendor_name":"","invoice_number":"","invoice_date":"","due_date":"",
+  "vendor_gstin":null,"buyer_gstin":null,
+  "line_items":[{"description":"","hsn_code":"","quantity":0,"unit":"","unit_price":0,"amount":0,"gst_rate":0,"gst_amount":0}],
+  "subtotal":0,"total_gst":0,"total_amount":0,"currency":"USD",
+  "discrepancies":[{"type":"calculation_error|gst_mismatch|hsn_mismatch|duplicate_charge|mystery_surcharge|rate_anomaly|other","severity":"high|medium|low","line_item":null,"description":"","billed_amount":0,"correct_amount":0,"overcharge":0}],
+  "total_overcharge":0,"correct_total":0,
+  "audit_summary":"","confidence_score":0.0,"extraction_notes":""
+}
+Check: qty×price=amount; GST per slab (0/5/12/18/28%); HSN vs GST mismatches; duplicate line items; unjustified surcharges; subtotal+GST=total; GSTIN 15-char format.`;
+
+    const sourceType=isImageMediaType(mt)?'image':'document';
+    const content=[
+      {type:sourceType,source:{type:'base64',media_type:mt,data:b64}},
+      {type:'text',text:'Audit this invoice.'}
+    ];
+
+    setStep(2,'ok');setStep(3,'on');
+
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,system:sys,messages:[{role:'user',content}]})
+    });
+
+    setStep(3,'ok');setStep(4,'on');
+    const data=await res.json();
+    if(data.error)throw new Error(data.error.message);
+    let raw=data.content.map(c=>c.text||'').join('');
+    const m=raw.match(/\{[\s\S]*\}/);
+    if(m)raw=m[0];
+    r=JSON.parse(raw);
+    setStep(4,'ok');setStep(5,'on');
+    await delay(700);
+    setStep(5,'ok');
+    await delay(400);
+    renderRes(r);
+    toast('✅',`Done — ${r.discrepancies?.length||0} issue(s) found.`);
+  }catch(e){
+    toast('❌','Error: '+e.message);
+    console.error(e);
+  }finally{
+    document.getElementById('ab').disabled=false;
+    document.getElementById('abl').textContent='Audit another invoice';
+    document.getElementById('asp').style.display='none';
+  }
+}
+
+function getUploadMediaType(file){
+  const explicitType=(file?.type||'').trim();
+  if(explicitType)return explicitType;
+
+  const name=(file?.name||'').toLowerCase();
+  if(name.endsWith('.pdf'))return 'application/pdf';
+  if(name.endsWith('.xlsx'))return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  if(name.endsWith('.xls'))return 'application/vnd.ms-excel';
+  if(name.endsWith('.csv'))return 'text/csv';
+  if(name.endsWith('.png'))return 'image/png';
+  if(name.endsWith('.jpg')||name.endsWith('.jpeg'))return 'image/jpeg';
+  if(name.endsWith('.webp'))return 'image/webp';
+  return 'application/octet-stream';
+}
+
+function isImageMediaType(mediaType){
+  return /^image\//i.test(mediaType||'');
+}
+
+function toB64(file){
+  return new Promise((res,rej)=>{
+    const rd=new FileReader();
+    rd.onload=()=>res(rd.result.split(',')[1]);
+    rd.onerror=()=>rej(new Error('File read failed'));
+    rd.readAsDataURL(file);
+  });
+}
+
+const usdFmt=new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:2});
+const fmt=n=>(n==null||isNaN(n))?'—':usdFmt.format(Math.abs(n));
+
+function renderRes(d){
+  const sec=document.getElementById('res');
+  sec.style.display='block';
+  setTimeout(()=>sec.scrollIntoView({behavior:'smooth'}),120);
+
+  document.getElementById('rtitle').textContent=`${d.vendor_name||'Invoice'} — Audit Report`;
+  document.getElementById('kb').textContent=fmt(d.total_amount);
+  document.getElementById('kc2').textContent=fmt(d.correct_total);
+  document.getElementById('ko').textContent=d.total_overcharge>0?fmt(d.total_overcharge):fmt(0);
+  const pct=d.total_amount>0?((d.total_overcharge/d.total_amount)*100).toFixed(1):0;
+  document.getElementById('kp').textContent=`${pct}% of billed`;
+  document.getElementById('ki').textContent=d.discrepancies?.length||0;
+  const hi=(d.discrepancies||[]).filter(x=>x.severity==='high').length;
+  document.getElementById('ks').textContent=hi>0?`${hi} high severity`:'No critical issues';
+
+  const mf=[
+    {l:'Vendor',v:d.vendor_name},{l:'Invoice #',v:d.invoice_number},{l:'Date',v:d.invoice_date},
+    {l:'Due Date',v:d.due_date||'—'},{l:'Vendor GSTIN',v:d.vendor_gstin||'Not provided'},{l:'Confidence',v:d.confidence_score?Math.round(d.confidence_score*100)+'%':'—'}
+  ];
+  document.getElementById('mg').innerHTML=mf.map(x=>`<div class="mi"><div class="ml">${x.l}</div><div class="mv">${x.v||'—'}</div></div>`).join('');
+
+  const disc=d.discrepancies||[];
+  document.getElementById('fb').textContent=disc.length;
+  document.getElementById('fl').innerHTML=!disc.length
+    ?`<div style="text-align:center;padding:36px;color:var(--text-3)"><div style="font-size:1.8rem;margin-bottom:9px">✅</div><div style="font-size:0.82rem">${d.audit_summary||'Invoice appears clean.'}</div></div>`
+    :disc.map(x=>`<div class="fr"><span class="sv ${x.severity==='high'?'sh':x.severity==='medium'?'sm':'sl'}">${(x.severity||'').toUpperCase()}</span><div><div class="fdm">${x.description}</div><div class="fds">${x.line_item?'Line: '+x.line_item:x.type?.replace(/_/g,' ')}</div></div><span class="oa ${x.overcharge>0?'bad':'ok'}">${x.overcharge>0?'+'+fmt(x.overcharge):'✓'}</span></div>`).join('')
+      +(d.audit_summary&&disc.length?`<div style="padding:12px 0 0;font-size:0.72rem;color:var(--text-3);font-style:italic;border-top:1px solid var(--border);margin-top:5px">${d.audit_summary}</div>`:'');
+
+  const tm={};
+  disc.forEach(x=>{tm[x.type]=(tm[x.type]||0)+(x.overcharge||0);});
+  const tot=d.total_overcharge||1;
+  const fills=['f1','f2','f3','f4'];
+  const labs={calculation_error:'Calc Errors',gst_mismatch:'GST Mismatch',hsn_mismatch:'HSN Mismatch',duplicate_charge:'Duplicates',mystery_surcharge:'Surcharges',rate_anomaly:'Rate Anomaly',other:'Other'};
+  const items=Object.entries(tm).map(([t,a],i)=>({l:labs[t]||t,a,p:Math.round((a/tot)*100),f:fills[i%4]})).sort((a,b)=>b.a-a.a);
+  document.getElementById('bl').innerHTML=!items.length
+    ?`<div style="color:var(--text-3);font-size:0.8rem;padding:22px 0;text-align:center">No overcharges</div>`
+    :items.map(x=>`<div class="bi"><div class="bt"><span>${x.l}</span><span>${fmt(x.a)}</span></div><div class="btr"><div class="bf ${x.f}" style="width:0%" data-w="${x.p}%"></div></div></div>`).join('');
+
+  requestAnimationFrame(()=>{document.querySelectorAll('.bf').forEach(el=>{el.style.width=el.dataset.w;});});
+}
+
+function dlReport(){
+  if(!r)return toast('⚠️','No data to download.');
+  const b=new Blob([JSON.stringify(r,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);
+  a.download=`audit_${r.invoice_number||Date.now()}.json`;a.click();
+}
+
+function runDemo(){
+  r={vendor_name:"Delhivery Logistics Pvt Ltd",invoice_number:"DL-2024-78432",invoice_date:"15 Feb 2024",due_date:"28 Feb 2024",vendor_gstin:"29AADCD1234F1Z5",buyer_gstin:"27AABCT1234G1Z8",currency:"USD",total_amount:2211.0,correct_total:2066.16,total_overcharge:144.84,confidence_score:0.94,audit_summary:"Three significant discrepancies found: GST overcharged on freight (18% vs 5%), an unsanctioned fuel surcharge, and a duplicate handling fee.",extraction_notes:"Clean PDF.",discrepancies:[{type:"gst_mismatch",severity:"high",line_item:"Freight — Mumbai to Pune",description:"GST at 18% applied; HSN 9965 (freight) qualifies for the 5% slab",billed_amount:216.0,correct_amount:60.0,overcharge:82.68},{type:"mystery_surcharge",severity:"high",line_item:"Fuel Surcharge Q4",description:"$42.00 fuel surcharge absent from signed rate card — no contractual basis found",billed_amount:42.0,correct_amount:0,overcharge:42.0},{type:"duplicate_charge",severity:"medium",line_item:"Handling Fee Batch #221",description:"Handling fee of $10.56 appears twice in line items 4 and 9 for the same batch",billed_amount:21.12,correct_amount:10.56,overcharge:10.56},{type:"calculation_error",severity:"low",line_item:"Packaging Material (500 units)",description:"500 × $0.14 = $72.00 but billed $74.40; unexplained $2.40 variance",billed_amount:74.4,correct_amount:72.0,overcharge:2.4}]};
+  renderRes(r);
+  toast('🎯','Demo loaded — Delhivery invoice with $144.84 in overcharges.');
+}
+
+function toast(icon,msg){
+  const t=document.getElementById('toast');
+  document.getElementById('ti').textContent=icon;
+  document.getElementById('tm').textContent=msg;
+  t.classList.add('on');
+  setTimeout(()=>t.classList.remove('on'),4200);
+}
+</script>
+</body>
+</html>
